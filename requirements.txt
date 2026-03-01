@@ -1,0 +1,9 @@
+easyocr
+openai
+argostranslate
+requests
+opencv-python
+numpy
+Pillow
+shapely
+deep-translator
