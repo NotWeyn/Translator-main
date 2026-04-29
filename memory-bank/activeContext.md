@@ -2,16 +2,15 @@
 
 ## Current Focus
 - **Project Status**: Production-ready with recent bug fixes.
-- **Latest Work**: Created a comprehensive `.gitignore` file and untracked existing `__pycache__` files.
-- **Active Issues**: Ensuring text blocks are visually distinct in Windowed Mode.
+- **Latest Work**: Implemented dynamic OCR backend loading/installation, redesigned the main UI layout to use a collapsible left sidebar, and completely removed the experimental Hyprland mode.
+- **Active Issues**: None currently.
 
 ## Recent Decisions & Changes (Latest Session)
-- **PaddleOCR Fix (Final)**: Completely removed `cls=True` parameter from `ocr()` call (previous fix was incomplete - had duplicate line).
-- **Windowed Mode Separation**: Added horizontal separator lines between text blocks for better visual distinction.
-- **Text Merge Distance**: Works correctly - affects how OCR results are clustered before display.
+- **UI Redesign**: Replaced the standard horizontal tab layout with a vertical list inside a collapsible left panel (sidebar) to improve aesthetics and navigation.
+- **Dynamic OCR Loading**: OCR backends (EasyOCR, PaddleOCR, MMOCR) are now loaded dynamically when translation starts, rather than at application launch. If a required OCR package is missing, it will be automatically installed via `pip`.
+- **Hyprland Mode Removal**: The experimental Hyprland mode (which relied on absolute coordinates and specific compositor transparency features) has been completely removed. The application now exclusively uses the more reliable Windowed mode.
 
-## Two Operating Modes
-- **Hyprland Mode** (Experimental): Overlay at exact screen positions
+## Operating Mode
 - **Windowed Mode**: Linear list with improvements:
   - Dynamic font sizing
   - Visual separators between sentence blocks (gray horizontal lines)
@@ -37,11 +36,9 @@
 - **Windowed Mode**: Each text block is a clustered group of sentences
 
 ## Known Issues & Limitations
-- Hyprland Mode click-through depends on compositor support
 - ccache warning from PaddleOCR is ignorable (compilation cache optimization)
+- First-time installation of MMOCR might take several minutes depending on the system.
 
 ## Next Steps
-1. Rename "Local AI" to "OpenAI Compatible LLM" and switch to URL input.
-2. Refactor `OpenAITranslator` to support custom base URLs.
-3. Remove "Arch" branding from UI and docs.
-4. Investigate multiplatform packaging.
+1. Refactor `OpenAITranslator` to support custom base URLs.
+2. Investigate multiplatform packaging.

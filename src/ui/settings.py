@@ -1,10 +1,10 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QLineEdit, QComboBox, QCheckBox, QPushButton, 
-                             QTabWidget, QSpinBox, QApplication)
-from PyQt6.QtCore import QTimer, QThread, pyqtSignal
+                             QTabWidget, QSpinBox, QApplication, QSizePolicy)
+from PyQt6.QtCore import QTimer, QThread, pyqtSignal, Qt
 from src.utils.config import ConfigManager
 from src.utils.capture import ScreenCapture
-from src.core.ocr import EasyOCRBackend
+from src.core.ocr import EasyOCRBackend, PaddleOCRBackend
 from src.core.text_processor import TextProcessor
 from src.core.translator import OpenAITranslator, OfflineTranslator, GoogleTranslator, DeepLTranslator
 from src.ui.overlay import OverlayWindow
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class TranslationWorker(QThread):
     """Background worker for continuous translation."""
     translation_complete = pyqtSignal(list)  # Emits translated blocks
+    error_occurred = pyqtSignal(str)
     
     def __init__(self, config):
         super().__init__()
@@ -35,9 +36,14 @@ class TranslationWorker(QThread):
         # Initialize OCR
         try:
             use_gpu = self.config.get('use_gpu', True)
-            self.ocr = EasyOCRBackend(use_gpu=use_gpu)
+            ocr_backend = self.config.get('ocr_backend', 'EasyOCR')
+            if ocr_backend == 'PaddleOCR':
+                self.ocr = PaddleOCRBackend(use_gpu=use_gpu)
+            else:
+                self.ocr = EasyOCRBackend(use_gpu=use_gpu)
         except Exception as e:
             logger.error(f"OCR initialization failed: {e}")
+            self.error_occurred.emit(str(e))
             self.running = False
             return
         
@@ -197,28 +203,50 @@ class SettingsWindow(QWidget):
             self.setStyleSheet("") # Reset to default (light)
             
     def initUI(self):
+        from PyQt6.QtWidgets import QListWidget, QStackedWidget
         self.setWindowTitle('Screen Translator')
-        self.setGeometry(300, 300, 600, 500)
+        self.setGeometry(300, 300, 700, 500)
         
         # Apply initial theme
         self.apply_theme(self.config.get("theme", "dark"))
 
-        layout = QVBoxLayout()
+        main_layout = QHBoxLayout()
         
-        # Tabs
-        self.tabs = QTabWidget()
+        # Left Panel (Sidebar)
+        self.left_panel = QWidget()
+        self.left_layout = QVBoxLayout()
+        self.left_layout.setContentsMargins(0, 0, 0, 0)
+        self.left_layout.setAlignment(Qt.AlignmentFlag.AlignTop) # Pack to top
+        
+        self.toggle_btn = QPushButton("≡")
+        self.toggle_btn.setFixedSize(30, 30)
+        self.toggle_btn.clicked.connect(self.toggle_sidebar)
+        self.left_layout.addWidget(self.toggle_btn)
+        
+        self.sidebar_list = QListWidget()
+        self.sidebar_list.addItems(["Control", "General", "OCR", "Translation", "Developer"])
+        self.sidebar_list.currentRowChanged.connect(self.change_tab)
+        # Ensure list widget expands when visible
+        self.sidebar_list.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        self.left_layout.addWidget(self.sidebar_list)
+        
+        self.left_panel.setLayout(self.left_layout)
+        self.left_panel.setFixedWidth(150)
+        main_layout.addWidget(self.left_panel)
+        
+        # Right Panel (Stacked Widget)
+        self.stacked_widget = QStackedWidget()
+        self.tab_control = QWidget()
         self.tab_general = QWidget()
         self.tab_ocr = QWidget()
         self.tab_trans = QWidget()
-        self.tab_trans = QWidget()
-        self.tab_control = QWidget()
         self.tab_dev = QWidget()
         
-        self.tabs.addTab(self.tab_control, "Control")
-        self.tabs.addTab(self.tab_general, "General")
-        self.tabs.addTab(self.tab_ocr, "OCR")
-        self.tabs.addTab(self.tab_trans, "Translation")
-        self.tabs.addTab(self.tab_dev, "Developer")
+        self.stacked_widget.addWidget(self.tab_control)
+        self.stacked_widget.addWidget(self.tab_general)
+        self.stacked_widget.addWidget(self.tab_ocr)
+        self.stacked_widget.addWidget(self.tab_trans)
+        self.stacked_widget.addWidget(self.tab_dev)
         
         self.init_control_tab()
         self.init_general_tab()
@@ -226,8 +254,19 @@ class SettingsWindow(QWidget):
         self.init_trans_tab()
         self.init_dev_tab()
         
-        layout.addWidget(self.tabs)
-        self.setLayout(layout)
+        main_layout.addWidget(self.stacked_widget)
+        self.setLayout(main_layout)
+
+    def toggle_sidebar(self):
+        if self.sidebar_list.isVisible():
+            self.sidebar_list.hide()
+            self.left_panel.setFixedWidth(30)
+        else:
+            self.sidebar_list.show()
+            self.left_panel.setFixedWidth(150)
+            
+    def change_tab(self, index):
+        self.stacked_widget.setCurrentIndex(index)
 
     def init_control_tab(self):
         layout = QVBoxLayout()
@@ -258,12 +297,6 @@ class SettingsWindow(QWidget):
         interval_layout.addStretch()
         
         layout.addLayout(interval_layout)
-        
-        # Hyprland Mode
-        self.hyprland_check = QCheckBox("Hyprland Mode (Experimental)")
-        self.hyprland_check.setChecked(self.config.get("hyprland_mode", True))
-        self.hyprland_check.toggled.connect(self.auto_save)
-        layout.addWidget(self.hyprland_check)
         
         # Start/Stop
         control_layout = QHBoxLayout()
@@ -315,13 +348,13 @@ class SettingsWindow(QWidget):
     def init_ocr_tab(self):
         layout = QVBoxLayout()
         
-        # Backend (Removed selection, defaulting to EasyOCR)
-        # layout.addWidget(QLabel("OCR Backend:"))
-        # self.ocr_backend_combo = QComboBox()
-        # self.ocr_backend_combo.addItems(["PaddleOCR", "EasyOCR"])
-        # self.ocr_backend_combo.setCurrentText(self.config.get("ocr_backend", "EasyOCR"))
-        # self.ocr_backend_combo.currentTextChanged.connect(self.auto_save)
-        # layout.addWidget(self.ocr_backend_combo)
+        # Backend
+        layout.addWidget(QLabel("OCR Backend:"))
+        self.ocr_backend_combo = QComboBox()
+        self.ocr_backend_combo.addItems(["EasyOCR", "PaddleOCR"])
+        self.ocr_backend_combo.setCurrentText(self.config.get("ocr_backend", "EasyOCR"))
+        self.ocr_backend_combo.currentTextChanged.connect(self.auto_save)
+        layout.addWidget(self.ocr_backend_combo)
         
         # GPU
         self.gpu_check = QCheckBox("Use GPU (Requires CUDA)")
@@ -443,7 +476,6 @@ class SettingsWindow(QWidget):
         new_config = {
             "source_lang": self.source_lang_input.text(),
             "target_lang": self.target_lang_input.text(),
-            # "ocr_backend": self.ocr_backend_combo.currentText(), # Removed
             "use_gpu": self.gpu_check.isChecked(),
             "correction_enabled": self.correction_check.isChecked(),
             "merge_distance": self.merge_spin.value(),
@@ -452,7 +484,7 @@ class SettingsWindow(QWidget):
             "llm_api_base": self.llm_url_input.text(),
             "region": self.config.get('region', ''),
             "interval": self.interval_spin.value(),
-            "hyprland_mode": self.hyprland_check.isChecked(),
+            "ocr_backend": self.ocr_backend_combo.currentText(),
             "perf_logging": self.perf_log_check.isChecked(),
             "region_check": self.region_check_box.isChecked(),
             "theme": self.config.get("theme", "dark")
@@ -470,12 +502,12 @@ class SettingsWindow(QWidget):
         
         # Create overlay
         if not self.overlay:
-            hyprland_mode = self.config.get('hyprland_mode', True)
-            self.overlay = OverlayWindow(hyprland_mode=hyprland_mode)
+            self.overlay = OverlayWindow()
         
         # Create and start worker
         self.worker = TranslationWorker(self.config)
         self.worker.translation_complete.connect(self.update_overlay)
+        self.worker.error_occurred.connect(self.show_error_message)
         self.worker.start()
         
         self.start_btn.setEnabled(False)
@@ -519,6 +551,11 @@ class SettingsWindow(QWidget):
         """Handle window close event."""
         self.stop_translation()
         event.accept()
+
+    def show_error_message(self, message):
+        from PyQt6.QtWidgets import QMessageBox
+        self.stop_translation()
+        QMessageBox.critical(self, "OCR Initialization Error", message)
 
 
 if __name__ == '__main__':

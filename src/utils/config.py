@@ -6,7 +6,7 @@ CONFIG_FILE = os.path.expanduser("~/.config/screen_translator/config.json")
 
 DEFAULT_CONFIG = {
     "ocr_backend": "EasyOCR",
-    "translator_backend": "Local Translation", # OpenAI, Local Translation, Google, DeepL
+    "translator_backend": "Argos Translate",
     "source_lang": "auto",
     "target_lang": "tr",
     "openai_api_key": "",
@@ -14,8 +14,7 @@ DEFAULT_CONFIG = {
     "use_gpu": True,
     "correction_enabled": True,
     "region": "",  # Selected screen region (saved from slurp)
-    "interval": 5,  # Translation check interval in ticks
-    "hyprland_mode": True  # Use Hyprland-specific overlay flags
+    "interval": 5  # Translation check interval in ticks
 }
 
 class ConfigManager:
