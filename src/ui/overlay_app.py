@@ -7,6 +7,7 @@ translates → renders on screen.
 """
 
 import sys
+import os
 import signal
 import logging
 import time
@@ -170,6 +171,14 @@ def run_overlay():
     log_level = config["developer"].get("log_level", "INFO").upper()
     logging.basicConfig(level=getattr(logging, log_level, logging.INFO),
                         format="%(levelname)s:%(name)s:%(message)s")
+
+    # Try XWayland (xcb) first for X11 click-through support.
+    # If DISPLAY is set, XWayland is likely available.
+    if os.environ.get("DISPLAY"):
+        os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
+        logger.info("Using xcb (XWayland) platform for click-through support")
+    else:
+        logger.info("No DISPLAY set — using native Wayland (click-through via hyprctl)")
 
     app = QApplication(sys.argv)
 
