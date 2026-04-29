@@ -1,74 +1,165 @@
-# Linux Screen Translator - Walkthrough & Usage Guide
+<p align="center">
+  <h1 align="center">🌐 Screen Translator</h1>
+  <p align="center">
+    <em>Linux masaüstünde gerçek zamanlı ekran çevirisi — oyunlar, uygulamalar ve her şey için.</em>
+  </p>
+  <p align="center">
+    <img src="https://img.shields.io/badge/platform-Linux-blue?style=flat-square" alt="Platform">
+    <img src="https://img.shields.io/badge/Wayland-ready-green?style=flat-square" alt="Wayland">
+    <img src="https://img.shields.io/badge/Python-3.10+-yellow?style=flat-square" alt="Python">
+    <img src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square" alt="License">
+  </p>
+</p>
 
-## Installation
+---
 
-### 1. System Dependencies
+## ✨ Ne Yapıyor?
 
-You need to install the following packages for screen capturing and GUI support:
+Ekranınızdaki herhangi bir bölgeyi seçin — uygulama o bölgedeki metni **algılar**, **anlar** ve seçtiğiniz dile **çevirir**. Oyun oynarken, belge okurken veya yabancı dilde bir uygulama kullanırken çalışır.
+
+**İki mod:**
+
+| Mod | Açıklama | Başlatma |
+|-----|----------|----------|
+| 🖥️ **GUI Modu** | Ayar penceresi + pencereli çeviri görünümü | `./start.sh` |
+| 🎮 **Overlay Modu** | Tam ekran, tıklama-geçiren şeffaf katman — metin doğrudan üzerine yazılır | `./start.sh --overlay` |
+
+---
+
+## 🚀 Hızlı Başlangıç
+
+### 1. Sistem Bağımlılıkları
 
 ```bash
+# Arch Linux / Manjaro
 sudo pacman -S grim slurp python-pyqt6
-```
 
-If you plan to use GPU acceleration (Recommended for EasyOCR):
-```bash
+# GPU hızlandırma (EasyOCR için önerilir)
 sudo pacman -S cuda cudnn
 ```
 
-### 2. Python Dependencies
-Install the required Python libraries:
+### 2. Başlat
 
 ```bash
-pip install -r requirements.txt
+git clone <repo-url> && cd Translator-main
+./start.sh
 ```
 
-## Usage
+`start.sh` gerisini halleder: sanal ortamı oluşturur, bağımlılıkları kurar ve uygulamayı başlatır. İlk çalıştırmada birkaç dakika sürebilir.
 
-### Configuration
-Run the application to open the configuration window:
+> **Overlay modu** için: `./start.sh --overlay`  
+> Tüm ayarlar proje kökündeki `config.toml` dosyasından okunur.
+
+---
+
+## ⚙️ Yapılandırma
+
+Uygulama ilk çalıştığında proje kökünde otomatik olarak bir `config.toml` dosyası oluşturur. Elle düzenleyebilir veya GUI üzerinden ayarlayabilirsiniz.
+
+**Bölümler:** `[general]` · `[ocr]` · `[translation]` · `[capture]` · `[overlay]` · `[hotkeys]` · `[developer]`
+
+> 📄 **Tüm ayarlar, açıklamalar ve önerilen değerler için:** [docs/CONFIGURATION.md](docs/CONFIGURATION.md)
+
+---
+
+## 📖 Kullanım Kılavuzu
+
+### GUI Modu
+
+1. `./start.sh` ile uygulamayı başlatın
+2. **Select Region** → Ekrandan çevrilecek bölgeyi sürükleyerek seçin
+3. **Start Translation** → Çeviri başlar, sonuçlar pencereli overlay'de gösterilir
+4. **Stop** → Durdurur
+
+**Sidebar menüsünden erişilebilen sekmeler:**
+
+| Sekme | İçerik |
+|-------|--------|
+| **Control** | Bölge seçimi, başlat/durdur, tema değiştirme |
+| **General** | Kaynak ve hedef dil ayarları |
+| **OCR** | Backend seçimi, GPU, metin birleştirme mesafesi |
+| **Translation** | Çeviri motoru, API anahtarları |
+| **Developer** | Performans logları, OCR debug modu |
+
+### Overlay Modu
 
 ```bash
-python main.py 
+./start.sh --overlay
 ```
 
-Here you can:
-- **General**: Set source and target languages 
-- **OCR**: EasyOCR is used by default. Enable GPU if available.
-- **Translation**: 
-    - **Argos Translate**: Offline translation (models downloaded automatically).
-    - **OpenAI Compatible LLM**: Use local LLMs (Ollama, LM Studio) or compatible APIs.
-    - **DeepL / Google**: Web-based translation.
+- GUI açılmaz — doğrudan fullscreen şeffaf overlay başlar
+- Belirlenen bölgedeki metinler algılanıp **bbox üzerine** karartmalı arka planla çevrilir
+- Tıklamalar overlay'den geçer (oyun/uygulama kullanımını engellemez)
+- Durdurmak için: `Ctrl+C` veya `ESC`
 
-### Running the Translator
-1. Run `python main.py` to open the GUI.
-2. **Select Region**: Click the button and drag to select the screen area to monitor.
-3. **Start Translation**: Click "Start". The app will continuously monitor the region.
-4. **Stop**: Click "Stop" to end the session.
+> **İpucu:** Overlay ayarlarını (`config.toml → [overlay]`) düzenleyerek arka plan opaklığı, yazı tipi, renk ve boyut gibi değerleri özelleştirin.
 
-### Modes
-- **Hyprland Mode (Overlay)**:
-    - Best for games/apps where you want text replaced in-place.
-    - Uses an overlay window that matches the text positions.
-    - *Experimental*: Requires Wayland/Hyprland with specific window rules for click-through.
-- **Windowed Mode (Non-Hyprland)**:
-    - Best for watching videos or general usage.
-    - Opens a separate "Subtitle Window" that lists the translated text.
-    - You can move and resize this window freely.
+---
 
-### Developer Tools
-- **Performance Logging**: Enable in the "Developer" tab to see timing stats in the terminal.
-- **Region Checker**: Enable to see the raw OCR output without translation (useful for debugging OCR accuracy).
+## 🔧 Çeviri Motorları
 
-## Troubleshooting
-- **Wayland Issues**: Ensure `grim` and `slurp` work from your terminal first.
-- **OCR Accuracy & Text Merging**: 
-    - If text appears split into multiple disconnected lines when it should be one sentence, increase the **"Text Merge Distance"** in Settings → OCR tab.
-    - This parameter controls how aggressively the app merges nearby text blocks:
-        - **Vertical sensitivity**: Text blocks closer than this distance (in pixels) vertically will be merged.
-        - **Horizontal sensitivity**: Also affects horizontal merging (threshold = max(50, merge_distance)).
-    - **Recommended values**:
-        - `20-50` for 1080p screens
-        - `50-100` for 1440p screens
-        - `100-200` for 4K screens or when text is very spread out
-    - If text still won't merge, the OCR might be detecting them as separate blocks due to punctuation (periods, exclamation marks, question marks). The app reduces merge sensitivity after punctuation to avoid incorrectly merging different sentences.
+| Motor | Tür | Not |
+|-------|-----|-----|
+| **Argos Translate** | Offline | Modeller otomatik indirilir, internet gerekmez |
+| **OpenAI Compatible LLM** | Lokal/API | Ollama, LM Studio veya herhangi bir uyumlu endpoint |
+| **Google Translate** | Online | API anahtarı gerekmez |
+| **DeepL** | Online | API anahtarı gerekir |
 
+---
+
+## 🔍 Sorun Giderme
+
+### Metin doğru birleşmiyor / cümleler bölünüyor
+
+**Text Merge Distance** değerini artırın (`config.toml → [ocr] → merge_distance`):
+
+| Çözünürlük | Önerilen Değer |
+|------------|---------------|
+| 1080p | `20–50` |
+| 1440p | `50–100` |
+| 4K | `100–200` |
+
+> Noktalama işaretlerinden (`.`, `!`, `?`) sonra birleştirme hassasiyeti otomatik olarak düşer — bu, farklı cümlelerin yanlışlıkla birleşmesini önler.
+
+### Wayland sorunları
+
+```bash
+# grim ve slurp'ın çalıştığını doğrulayın
+grim test.png && echo "grim OK"
+slurp && echo "slurp OK"
+```
+
+### OCR doğruluğu düşük
+
+- GPU'yu etkinleştirin (`[ocr] → use_gpu = true`)
+- Farklı OCR backend deneyin (EasyOCR ↔ PaddleOCR)
+- **Developer → Region Checker** ile ham OCR çıktısını inceleyin
+
+---
+
+## 🏗️ Mimari
+
+```
+Screen Translator
+├── start.sh              ← Başlatıcı (venv + bağımlılık yönetimi)
+├── main.py               ← Giriş noktası (--overlay flag)
+├── config.toml           ← Tüm ayarlar (otomatik oluşturulur)
+├── src/
+│   ├── core/
+│   │   ├── ocr.py        ← OCR backend'ler (EasyOCR, PaddleOCR)
+│   │   ├── text_processor.py  ← Metin kümeleme & düzeltme
+│   │   └── translator.py ← Çeviri backend'ler
+│   ├── ui/
+│   │   ├── settings.py   ← GUI ayar penceresi
+│   │   ├── overlay.py    ← Overlay penceresi (dual-mode rendering)
+│   │   └── overlay_app.py ← Headless overlay uygulaması
+│   └── utils/
+│       ├── config.py     ← TOML config yöneticisi
+│       └── capture.py    ← grim/slurp sarmalayıcı
+```
+
+---
+
+## 📄 Lisans
+
+MIT License — istediğiniz gibi kullanın, değiştirin, dağıtın.

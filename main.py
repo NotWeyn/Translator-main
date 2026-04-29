@@ -1,6 +1,7 @@
 import sys
 import logging
 import signal
+import argparse
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QTimer
 
@@ -25,23 +26,32 @@ def signal_handler(sig, frame):
     sys.exit(0)
 
 def main():
-    """Launch the Screen Translator GUI."""
+    """Launch the Screen Translator."""
     global app_instance, window_instance
     
-    # Set up signal handler
-    signal.signal(signal.SIGINT, signal_handler)
+    parser = argparse.ArgumentParser(description="Screen Translator")
+    parser.add_argument("--overlay", action="store_true",
+                        help="Start in overlay mode (no GUI, reads config.toml)")
+    args = parser.parse_args()
     
-    app_instance = QApplication(sys.argv)
-    window_instance = SettingsWindow()
-    window_instance.show()
-    
-    # Setup timer to allow Python signal handlers to run
-    # This makes Ctrl+C work in console
-    timer = QTimer()
-    timer.start(500)  # Check every 500ms
-    timer.timeout.connect(lambda: None)  # Allow Python to process signals
-    
-    sys.exit(app_instance.exec())
+    if args.overlay:
+        # Overlay mode — headless, fullscreen click-through overlay
+        from src.ui.overlay_app import run_overlay
+        run_overlay()
+    else:
+        # Normal GUI mode
+        signal.signal(signal.SIGINT, signal_handler)
+        
+        app_instance = QApplication(sys.argv)
+        window_instance = SettingsWindow()
+        window_instance.show()
+        
+        # Setup timer to allow Python signal handlers to run
+        timer = QTimer()
+        timer.start(500)
+        timer.timeout.connect(lambda: None)
+        
+        sys.exit(app_instance.exec())
 
 if __name__ == "__main__":
     main()

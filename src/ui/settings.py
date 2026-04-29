@@ -35,8 +35,8 @@ class TranslationWorker(QThread):
         
         # Initialize OCR
         try:
-            use_gpu = self.config.get('use_gpu', True)
-            ocr_backend = self.config.get('ocr_backend', 'EasyOCR')
+            use_gpu = self.config["ocr"]["use_gpu"]
+            ocr_backend = self.config["ocr"]["backend"]
             if ocr_backend == 'PaddleOCR':
                 self.ocr = PaddleOCRBackend(use_gpu=use_gpu)
             else:
@@ -49,15 +49,15 @@ class TranslationWorker(QThread):
         
         # Initialize Translator
         try:
-            trans_backend = self.config['translator_backend']
+            trans_backend = self.config["translation"]["backend"]
             if trans_backend == 'DeepL':
-                self.translator = DeepLTranslator(api_key=self.config.get('deepl_api_key'))
+                self.translator = DeepLTranslator(api_key=self.config["translation"]["deepl_api_key"])
             elif trans_backend == 'Google':
                 self.translator = GoogleTranslator()
             elif trans_backend == 'OpenAI Compatible LLM':
                 self.translator = OpenAITranslator(
-                    api_key="dummy", # Local LLMs often don't need a key, or user can provide one if we add a field. For now, dummy.
-                    base_url=self.config.get('llm_api_base', 'http://127.0.0.1:5000/v1')
+                    api_key="dummy",
+                    base_url=self.config["translation"]["llm_api_base"]
                 )
             else:
                 self.translator = OfflineTranslator()
@@ -66,7 +66,7 @@ class TranslationWorker(QThread):
             self.running = False
             return
         
-        interval = self.config.get('interval', 5) * 1000  # Convert to milliseconds
+        interval = self.config["capture"]["interval"] * 1000  # Convert to milliseconds
         
         while self.running:
             try:
@@ -81,14 +81,14 @@ class TranslationWorker(QThread):
     
     def process_translation(self):
         """Single translation cycle."""
-        region = self.config.get('region', '')
+        region = self.config["capture"]["region"]
         if not region:
             logger.warning("No region selected")
             return
         
         # Capture screenshot
         t_start = time.time()
-        temp_image = "/tmp/arch_translator_capture.png"
+        temp_image = "/tmp/screen_translator_capture.png"
         if not ScreenCapture.capture_screenshot(temp_image, region):
             logger.error("Capture failed")
             return
@@ -103,23 +103,23 @@ class TranslationWorker(QThread):
         # Process text
         t_proc_start = time.time()
         processor = TextProcessor()
-        merge_dist = self.config.get('merge_distance', 20)
+        merge_dist = self.config["ocr"]["merge_distance"]
         text_blocks = processor.cluster_text(raw_results, y_threshold=merge_dist)
         
         # Translate
         t_trans_start = time.time()
         
         # Region Checker: If enabled, skip translation and show OCR text directly
-        if self.config.get('region_check', False):
+        if self.config["developer"]["region_check"]:
             translated_blocks = []
             for block in text_blocks:
                 translated_blocks.append({
-                    'text': f"{block.text}", # Raw OCR text
+                    'text': f"{block.text}",  # Raw OCR text
                     'bbox': block.bbox
                 })
         else:
-            target_lang = self.config.get('target_lang', 'tr')
-            source_lang = self.config.get('source_lang', 'auto')
+            target_lang = self.config["general"]["target_lang"]
+            source_lang = self.config["general"]["source_lang"]
             
             translated_blocks = []
             for block in text_blocks:
@@ -156,7 +156,7 @@ class TranslationWorker(QThread):
             self.translation_complete.emit(final_blocks)
             
             # Performance Logging
-            if self.config.get('perf_logging', False):
+            if self.config["developer"]["perf_logging"]:
                 t_end = time.time()
                 total_time = (t_end - t_start) * 1000
                 logger.info(f"[PERF] Total Cycle: {total_time:.2f}ms | "
@@ -183,9 +183,9 @@ class SettingsWindow(QWidget):
         
     def toggle_theme(self):
         """Toggle between dark and light theme."""
-        current_theme = self.config.get("theme", "dark")
+        current_theme = self.config["general"]["theme"]
         new_theme = "light" if current_theme == "dark" else "dark"
-        self.config["theme"] = new_theme
+        self.config["general"]["theme"] = new_theme
         self.auto_save()
         self.apply_theme(new_theme)
         
@@ -200,7 +200,7 @@ class SettingsWindow(QWidget):
                 QTabWidget::pane { border: 1px solid #444; }
             """)
         else:
-            self.setStyleSheet("") # Reset to default (light)
+            self.setStyleSheet("")  # Reset to default (light)
             
     def initUI(self):
         from PyQt6.QtWidgets import QListWidget, QStackedWidget
@@ -208,7 +208,7 @@ class SettingsWindow(QWidget):
         self.setGeometry(300, 300, 700, 500)
         
         # Apply initial theme
-        self.apply_theme(self.config.get("theme", "dark"))
+        self.apply_theme(self.config["general"]["theme"])
 
         main_layout = QHBoxLayout()
         
@@ -216,7 +216,7 @@ class SettingsWindow(QWidget):
         self.left_panel = QWidget()
         self.left_layout = QVBoxLayout()
         self.left_layout.setContentsMargins(0, 0, 0, 0)
-        self.left_layout.setAlignment(Qt.AlignmentFlag.AlignTop) # Pack to top
+        self.left_layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # Pack to top
         
         self.toggle_btn = QPushButton("≡")
         self.toggle_btn.setFixedSize(30, 30)
@@ -274,7 +274,7 @@ class SettingsWindow(QWidget):
         # Region Selection
         region_layout = QHBoxLayout()
         region_layout.addWidget(QLabel("Selected Region:"))
-        self.region_label = QLabel(self.config.get("region", "None"))
+        self.region_label = QLabel(self.config["capture"]["region"] or "None")
         self.region_label.setWordWrap(True)
         region_layout.addWidget(self.region_label)
         region_layout.addStretch()
@@ -291,7 +291,7 @@ class SettingsWindow(QWidget):
         self.interval_spin = QSpinBox()
         self.interval_spin.setMinimum(1)
         self.interval_spin.setMaximum(60)
-        self.interval_spin.setValue(self.config.get("interval", 5))
+        self.interval_spin.setValue(self.config["capture"]["interval"])
         self.interval_spin.valueChanged.connect(self.auto_save)
         interval_layout.addWidget(self.interval_spin)
         interval_layout.addStretch()
@@ -332,13 +332,13 @@ class SettingsWindow(QWidget):
         
         # Source Lang
         layout.addWidget(QLabel("Source Language:"))
-        self.source_lang_input = QLineEdit(self.config.get("source_lang", "auto"))
+        self.source_lang_input = QLineEdit(self.config["general"]["source_lang"])
         self.source_lang_input.textChanged.connect(self.auto_save)
         layout.addWidget(self.source_lang_input)
         
         # Target Lang
         layout.addWidget(QLabel("Target Language:"))
-        self.target_lang_input = QLineEdit(self.config.get("target_lang", "tr"))
+        self.target_lang_input = QLineEdit(self.config["general"]["target_lang"])
         self.target_lang_input.textChanged.connect(self.auto_save)
         layout.addWidget(self.target_lang_input)
         
@@ -352,19 +352,19 @@ class SettingsWindow(QWidget):
         layout.addWidget(QLabel("OCR Backend:"))
         self.ocr_backend_combo = QComboBox()
         self.ocr_backend_combo.addItems(["EasyOCR", "PaddleOCR"])
-        self.ocr_backend_combo.setCurrentText(self.config.get("ocr_backend", "EasyOCR"))
+        self.ocr_backend_combo.setCurrentText(self.config["ocr"]["backend"])
         self.ocr_backend_combo.currentTextChanged.connect(self.auto_save)
         layout.addWidget(self.ocr_backend_combo)
         
         # GPU
         self.gpu_check = QCheckBox("Use GPU (Requires CUDA)")
-        self.gpu_check.setChecked(self.config.get("use_gpu", True))
+        self.gpu_check.setChecked(self.config["ocr"]["use_gpu"])
         self.gpu_check.toggled.connect(self.auto_save)
         layout.addWidget(self.gpu_check)
         
         # Correction
         self.correction_check = QCheckBox("Enable Text Correction")
-        self.correction_check.setChecked(self.config.get("correction_enabled", True))
+        self.correction_check.setChecked(self.config["ocr"]["correction_enabled"])
         self.correction_check.toggled.connect(self.auto_save)
         layout.addWidget(self.correction_check)
 
@@ -374,7 +374,7 @@ class SettingsWindow(QWidget):
         self.merge_spin = QSpinBox()
         self.merge_spin.setMinimum(0)
         self.merge_spin.setMaximum(200)
-        self.merge_spin.setValue(self.config.get("merge_distance", 20))
+        self.merge_spin.setValue(self.config["ocr"]["merge_distance"])
         self.merge_spin.valueChanged.connect(self.auto_save)
         merge_layout.addWidget(self.merge_spin)
         merge_layout.addStretch()
@@ -390,24 +390,15 @@ class SettingsWindow(QWidget):
         layout.addWidget(QLabel("Translation Backend:"))
         self.trans_backend_combo = QComboBox()
         self.trans_backend_combo.addItems(["Argos Translate", "OpenAI Compatible LLM", "Google", "DeepL"])
-        self.trans_backend_combo.setCurrentText(self.config.get("translator_backend", "Argos Translate"))
+        self.trans_backend_combo.setCurrentText(self.config["translation"]["backend"])
         self.trans_backend_combo.currentTextChanged.connect(self.auto_save)
         self.trans_backend_combo.currentTextChanged.connect(self.update_trans_ui_state)
         layout.addWidget(self.trans_backend_combo)
         
-        # OpenAI Key
-        # OpenAI Key (Removed as standalone option, but kept in config just in case)
-        # self.openai_label = QLabel("OpenAI API Key:")
-        # layout.addWidget(self.openai_label)
-        # self.openai_key_input = QLineEdit(self.config.get("openai_api_key", ""))
-        # self.openai_key_input.setEchoMode(QLineEdit.EchoMode.Password)
-        # self.openai_key_input.textChanged.connect(self.auto_save)
-        # layout.addWidget(self.openai_key_input)
-        
         # DeepL Key
         self.deepl_label = QLabel("DeepL API Key:")
         layout.addWidget(self.deepl_label)
-        self.deepl_key_input = QLineEdit(self.config.get("deepl_api_key", ""))
+        self.deepl_key_input = QLineEdit(self.config["translation"]["deepl_api_key"])
         self.deepl_key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self.deepl_key_input.textChanged.connect(self.auto_save)
         layout.addWidget(self.deepl_key_input)
@@ -415,7 +406,7 @@ class SettingsWindow(QWidget):
         # OpenAI Compatible LLM URL
         self.llm_url_label = QLabel("API URL (e.g. http://127.0.0.1:5000/v1):")
         layout.addWidget(self.llm_url_label)
-        self.llm_url_input = QLineEdit(self.config.get("llm_api_base", "http://127.0.0.1:5000/v1"))
+        self.llm_url_input = QLineEdit(self.config["translation"]["llm_api_base"])
         self.llm_url_input.textChanged.connect(self.auto_save)
         layout.addWidget(self.llm_url_input)
         
@@ -430,13 +421,13 @@ class SettingsWindow(QWidget):
         
         # Performance Logging
         self.perf_log_check = QCheckBox("Enable Performance Logging (Console)")
-        self.perf_log_check.setChecked(self.config.get("perf_logging", False))
+        self.perf_log_check.setChecked(self.config["developer"]["perf_logging"])
         self.perf_log_check.toggled.connect(self.auto_save)
         layout.addWidget(self.perf_log_check)
         
         # Region Checker (OCR Debug)
         self.region_check_box = QCheckBox("Enable Region Checker (Show OCR Text Only)")
-        self.region_check_box.setChecked(self.config.get("region_check", False))
+        self.region_check_box.setChecked(self.config["developer"]["region_check"])
         self.region_check_box.toggled.connect(self.auto_save)
         layout.addWidget(self.region_check_box)
         
@@ -449,7 +440,7 @@ class SettingsWindow(QWidget):
         """Select screen region using slurp."""
         region = ScreenCapture.select_region()
         if region:
-            self.config['region'] = region
+            self.config["capture"]["region"] = region
             self.region_label.setText(region)
             self.auto_save()
             logger.info(f"Region selected: {region}")
@@ -463,7 +454,6 @@ class SettingsWindow(QWidget):
         self.llm_url_input.hide()
         
         # Show relevant
-        # Show relevant
         if backend == "DeepL":
             self.deepl_label.show()
             self.deepl_key_input.show()
@@ -473,30 +463,25 @@ class SettingsWindow(QWidget):
 
     def auto_save(self):
         """Auto-save settings whenever changed."""
-        new_config = {
-            "source_lang": self.source_lang_input.text(),
-            "target_lang": self.target_lang_input.text(),
-            "use_gpu": self.gpu_check.isChecked(),
-            "correction_enabled": self.correction_check.isChecked(),
-            "merge_distance": self.merge_spin.value(),
-            "translator_backend": self.trans_backend_combo.currentText(),
-            "deepl_api_key": self.deepl_key_input.text(),
-            "llm_api_base": self.llm_url_input.text(),
-            "region": self.config.get('region', ''),
-            "interval": self.interval_spin.value(),
-            "ocr_backend": self.ocr_backend_combo.currentText(),
-            "perf_logging": self.perf_log_check.isChecked(),
-            "region_check": self.region_check_box.isChecked(),
-            "theme": self.config.get("theme", "dark")
-        }
+        self.config["general"]["source_lang"] = self.source_lang_input.text()
+        self.config["general"]["target_lang"] = self.target_lang_input.text()
+        self.config["ocr"]["use_gpu"] = self.gpu_check.isChecked()
+        self.config["ocr"]["correction_enabled"] = self.correction_check.isChecked()
+        self.config["ocr"]["merge_distance"] = self.merge_spin.value()
+        self.config["ocr"]["backend"] = self.ocr_backend_combo.currentText()
+        self.config["translation"]["backend"] = self.trans_backend_combo.currentText()
+        self.config["translation"]["deepl_api_key"] = self.deepl_key_input.text()
+        self.config["translation"]["llm_api_base"] = self.llm_url_input.text()
+        self.config["capture"]["interval"] = self.interval_spin.value()
+        self.config["developer"]["perf_logging"] = self.perf_log_check.isChecked()
+        self.config["developer"]["region_check"] = self.region_check_box.isChecked()
         
-        ConfigManager.save_config(new_config)
-        self.config = new_config
+        ConfigManager.save_config(self.config)
         logger.info("Settings auto-saved")
 
     def start_translation(self):
         """Start the translation worker."""
-        if not self.config.get('region'):
+        if not self.config["capture"]["region"]:
             logger.warning("Please select a region first")
             return
         

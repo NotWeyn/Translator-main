@@ -12,65 +12,42 @@
 - [x] Final Bug Fixes (PaddleOCR, Windowed Mode)
 - [x] Created .gitignore
 - [x] **UI Redesign**: Implemented a collapsible left sidebar layout.
-- [x] **Dynamic OCR Loading**: Added support for EasyOCR, PaddleOCR, and MMOCR with automatic installation.
+- [x] **Dynamic OCR Loading**: Added support for EasyOCR, PaddleOCR with automatic installation.
 - [x] **Hyprland Mode Removal**: Streamlined the application by removing experimental Wayland-specific features.
+- [x] **Config Migration**: Replaced JSON config with TOML-based `config.toml` in project root.
+- [x] **Overlay Mode**: Added `--overlay` CLI flag for headless fullscreen overlay.
 
 ## What Works
 ### Core Functionality
 - **Screen Capture**: `grim` + `slurp` for region selection.
-- **OCR**: EasyOCR, PaddleOCR, and MMOCR backends working with dynamic loading/installation.
+- **OCR**: EasyOCR, PaddleOCR backends working with dynamic loading/installation.
 - **Text Processing**: Clustering with configurable merge distance, punctuation awareness.
-- **Translation**: 
-  - OpenAI, Google, DeepL backends.
-  - **Argos Translate** (Offline) with auto-model download.
-  - **Local AI** backend (custom port).
-- **Overlay System**: Windowed mode operational.
+- **Translation**: OpenAI, Google, DeepL, Argos Translate backends.
+- **Overlay System**: Windowed mode + new overlay mode (bbox-based rendering).
+
+### Config System
+- **TOML-based**: `config.toml` in project root for full portability.
+- **Auto-creation**: File created with defaults if missing.
+- **Sections**: `[general]`, `[ocr]`, `[translation]`, `[capture]`, `[overlay]`, `[hotkeys]`, `[developer]`.
+- **Deep merge**: Missing keys auto-filled from defaults.
+
+### Overlay Mode (`--overlay`)
+- **Fullscreen, click-through** transparent window.
+- **Configurable**: background opacity/color/padding, font family/size/color/bold.
+- **Show original text** option alongside translation.
+- **Separate refresh interval** from capture interval.
+- **Target region** override for overlay-specific capture area.
 
 ### UI Features
 - **Settings GUI**: Collapsible left sidebar for configuration options.
-- **Dynamic UI**: Translation settings (API keys/ports) show/hide based on selected backend.
-- **Auto-save**: Settings persist automatically.
+- **Auto-save**: Settings persist to `config.toml` automatically.
 - **Theme Toggle**: Dark/Light mode switching.
-- **Region Selection**: Visual region picker with preview.
-- **Continuous Monitoring**: Configurable interval-based translation.
-
-### Developer Tools
-- **Performance Logging**: Detailed timing breakdown for each pipeline step.
-- **Region Checker**: OCR debugging mode (shows raw detected text).
-
-### Polish & Latest Fixes
-- **User Requests Implemented**:
-  - Renamed "Local Translation" to "Argos Translate".
-  - **OpenAI Compatible LLM**: Replaced "Local AI" with standard OpenAI client support (custom base URL).
-  - **Multiplatform**: Removed "Arch" branding from UI, Config, and Docs.
-  - Dynamic visibility for API keys and URLs.
-  - Fixed Argos Translate language pair handling.
-  - Cleaned up Region Checker output.
-  - **UI Redesign**: Moved navigation to a collapsible left panel.
-  - **Dynamic OCR**: Selectable OCR backends that install automatically if missing and only load when needed.
-  - Removed "Hyprland Mode" entirely.
-- Dynamic font sizing to prevent text overflow.
-- Improved text clustering for better sentence detection.
-- **PaddleOCR Fully Fixed**: All compatibility issues resolved.
-- **Windowed Mode Improvements**: 
-  - Visual separator lines between text blocks
-  - Better spacing for readability
-  - Auto-sizing font
-- Responsive UI with proper window sizing.
 
 ## Known Issues & Limitations
-- **PaddleOCR**: 
-  - Requires `protobuf<=3.20.3` 
-  - ccache warning is normal (can be ignored)
-- **MMOCR**:
-  - Installation via pip/mim can take several minutes due to complex dependencies.
-- **Text Merge Distance**: Affects clustering at OCR stage, not display formatting
-
-## Technical Notes
-- Text clustering (controlled by Merge Distance) happens before display
-- Each "block" in Windowed Mode is a group of sentences clustered together
-- Separator lines added between blocks for visual clarity
+- **Hotkeys**: `[hotkeys]` section is defined in config but not yet implemented (future work).
+- **PaddleOCR**: ccache warning is normal (can be ignored).
 
 ## Future Considerations
+- Implement global hotkey support for overlay toggle/region select
 - Packaging for distribution (AUR, standalone binary)
 - Performance optimizations for low-end hardware

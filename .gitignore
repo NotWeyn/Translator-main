@@ -60,6 +60,7 @@ desktop.ini
 
 # Project specific
 .deps_hash
+config.toml
 *.log
 screenshots/
 temp/

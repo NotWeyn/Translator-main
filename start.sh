@@ -66,4 +66,4 @@ if [ "$CURRENT_HASH" != "$STORED_HASH" ]; then
 fi
 
 # ── Uygulamayı başlat ──
-exec ./venv/bin/python main.py
+exec ./venv/bin/python main.py "$@"

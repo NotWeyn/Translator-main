@@ -1,44 +1,37 @@
 # Active Context
 
 ## Current Focus
-- **Project Status**: Production-ready with recent bug fixes.
-- **Latest Work**: Implemented dynamic OCR backend loading/installation, redesigned the main UI layout to use a collapsible left sidebar, and completely removed the experimental Hyprland mode.
+- **Project Status**: Production-ready with config.toml migration and overlay mode.
+- **Latest Work**: Migrated from JSON config to TOML-based config system (`config.toml` in project root). Added `--overlay` CLI flag for headless overlay mode.
 - **Active Issues**: None currently.
 
 ## Recent Decisions & Changes (Latest Session)
-- **UI Redesign**: Replaced the standard horizontal tab layout with a vertical list inside a collapsible left panel (sidebar) to improve aesthetics and navigation.
-- **Dynamic OCR Loading**: OCR backends (EasyOCR, PaddleOCR, MMOCR) are now loaded dynamically when translation starts, rather than at application launch. If a required OCR package is missing, it will be automatically installed via `pip`.
-- **Hyprland Mode Removal**: The experimental Hyprland mode (which relied on absolute coordinates and specific compositor transparency features) has been completely removed. The application now exclusively uses the more reliable Windowed mode.
+- **Config Migration (JSON → TOML)**: Replaced `~/.config/screen_translator/config.json` with project-local `config.toml`. Full portability — no external config paths.
+- **Nested Config Structure**: Config now uses TOML sections: `[general]`, `[ocr]`, `[translation]`, `[capture]`, `[overlay]`, `[hotkeys]`, `[developer]`.
+- **Overlay Mode**: New `--overlay` flag. `./start.sh --overlay` launches a fullscreen, click-through overlay without the GUI. Reads all settings from `config.toml`.
+- **Auto-creation**: `config.toml` is auto-created with defaults if missing.
 
 ## Operating Mode
-- **Windowed Mode**: Linear list with improvements:
-  - Dynamic font sizing
-  - Visual separators between sentence blocks (gray horizontal lines)
-  - Auto-wrapping text
+- **GUI Mode** (default): `./start.sh` → SettingsWindow with sidebar navigation
+- **Overlay Mode**: `./start.sh --overlay` → Headless fullscreen overlay, click-through, bbox-based text rendering
 
 ## Implementation Patterns
-- **Config Persistence**: Auto-save on any settings change using `ConfigManager`.
+- **Config Persistence**: TOML file in project root, auto-save on settings change.
 - **Threading**: Translation worker runs in `QThread` to avoid blocking UI.
 - **Performance Logging**: Timing each step (Capture/OCR/Process/Translate) when enabled.
 - **Theme System**: CSS-based styling switchable at runtime.
 - **Text Clustering**: Configurable merge distance, punctuation-aware separation.
+- **Overlay Rendering**: Dual-mode paint: windowed (linear list) vs overlay (bbox-based with background darkening).
 
 ## Developer Tools
 1. **Performance Logging**: Console output showing timing for each pipeline step
 2. **Region Checker**: Shows raw OCR output without translation (debug mode)
 
 ## Known Technical Details
-- **PaddleOCR Compatibility**: 
-  - Requires `protobuf<=3.20.3` 
-  - `use_angle_cls=True` in initialization only
-  - NO `cls` parameter in `ocr()` call
+- **Config File**: `config.toml` at project root (auto-created, `.gitignore`'d)
 - **Text Processing**: Clustering happens before display, affecting both modes
-- **Windowed Mode**: Each text block is a clustered group of sentences
-
-## Known Issues & Limitations
-- ccache warning from PaddleOCR is ignorable (compilation cache optimization)
-- First-time installation of MMOCR might take several minutes depending on the system.
+- **Overlay Mode**: Each text block rendered at its bbox position with configurable background
 
 ## Next Steps
-1. Refactor `OpenAITranslator` to support custom base URLs.
+1. Implement global hotkey support for overlay mode (`[hotkeys]` section).
 2. Investigate multiplatform packaging.
