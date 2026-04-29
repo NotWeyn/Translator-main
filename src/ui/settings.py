@@ -1,13 +1,16 @@
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QLineEdit, QComboBox, QCheckBox, QPushButton, 
-                             QTabWidget, QSpinBox, QApplication, QSizePolicy)
-from PyQt6.QtCore import QTimer, QThread, pyqtSignal, Qt
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+                             QLineEdit, QComboBox, QCheckBox, QPushButton,
+                             QSpinBox, QApplication, QSizePolicy, QFrame,
+                             QStackedWidget, QScrollArea, QGraphicsDropShadowEffect)
+from PyQt6.QtCore import QTimer, QThread, pyqtSignal, Qt, QPropertyAnimation, QEasingCurve
+from PyQt6.QtGui import QColor, QFont
 from src.utils.config import ConfigManager
 from src.utils.capture import ScreenCapture
 from src.core.ocr import EasyOCRBackend, PaddleOCRBackend
 from src.core.text_processor import TextProcessor
 from src.core.translator import OpenAITranslator, OfflineTranslator, GoogleTranslator, DeepLTranslator
 from src.ui.overlay import OverlayWindow
+from src.ui.theme import build_stylesheet
 import sys
 import logging
 import os
@@ -19,21 +22,19 @@ logger = logging.getLogger(__name__)
 
 class TranslationWorker(QThread):
     """Background worker for continuous translation."""
-    translation_complete = pyqtSignal(list)  # Emits translated blocks
+    translation_complete = pyqtSignal(list)
     error_occurred = pyqtSignal(str)
-    
+
     def __init__(self, config):
         super().__init__()
         self.config = config
         self.running = False
         self.ocr = None
         self.translator = None
-        
+
     def run(self):
         """Main worker loop."""
         self.running = True
-        
-        # Initialize OCR
         try:
             use_gpu = self.config["ocr"]["use_gpu"]
             ocr_backend = self.config["ocr"]["backend"]
@@ -46,8 +47,7 @@ class TranslationWorker(QThread):
             self.error_occurred.emit(str(e))
             self.running = False
             return
-        
-        # Initialize Translator
+
         try:
             trans_backend = self.config["translation"]["backend"]
             if trans_backend == 'DeepL':
@@ -65,9 +65,8 @@ class TranslationWorker(QThread):
             logger.error(f"Translator initialization failed: {e}")
             self.running = False
             return
-        
-        interval = self.config["capture"]["interval"] * 1000  # Convert to milliseconds
-        
+
+        interval = self.config["capture"]["interval"] * 1000
         while self.running:
             try:
                 self.process_translation()
@@ -75,87 +74,58 @@ class TranslationWorker(QThread):
                 import traceback
                 logger.error(f"Translation error: {e}")
                 logger.error(traceback.format_exc())
-            
-            # Sleep for interval
             self.msleep(interval)
-    
+
     def process_translation(self):
         """Single translation cycle."""
         region = self.config["capture"]["region"]
         if not region:
             logger.warning("No region selected")
             return
-        
-        # Capture screenshot
+
         t_start = time.time()
         temp_image = "/tmp/screen_translator_capture.png"
         if not ScreenCapture.capture_screenshot(temp_image, region):
             logger.error("Capture failed")
             return
-        
-        # Detect text
+
         t_ocr_start = time.time()
         raw_results = self.ocr.detect(temp_image)
         if not raw_results:
             logger.info("No text detected")
             return
-        
-        # Process text
+
         t_proc_start = time.time()
         processor = TextProcessor()
         merge_dist = self.config["ocr"]["merge_distance"]
         text_blocks = processor.cluster_text(raw_results, y_threshold=merge_dist)
-        
-        # Translate
+
         t_trans_start = time.time()
-        
-        # Region Checker: If enabled, skip translation and show OCR text directly
         if self.config["developer"]["region_check"]:
-            translated_blocks = []
-            for block in text_blocks:
-                translated_blocks.append({
-                    'text': f"{block.text}",  # Raw OCR text
-                    'bbox': block.bbox
-                })
+            translated_blocks = [{'text': block.text, 'bbox': block.bbox} for block in text_blocks]
         else:
             target_lang = self.config["general"]["target_lang"]
             source_lang = self.config["general"]["source_lang"]
-            
             translated_blocks = []
             for block in text_blocks:
                 translated_text = self.translator.translate(block.text, target_lang, source_lang)
-                translated_blocks.append({
-                    'text': translated_text,
-                    'bbox': block.bbox
-                })
-        
-        # Adjust coordinates for overlay
+                translated_blocks.append({'text': translated_text, 'bbox': block.bbox})
+
         try:
             if not region or ' ' not in region:
                 logger.warning(f"Invalid region format: '{region}'. Expected 'x,y wxh'.")
                 return
-
             pos_str, size_str = region.split(' ')
             if ',' not in pos_str:
-                 logger.warning(f"Invalid position format: '{pos_str}'. Expected 'x,y'.")
-                 return
-                 
+                logger.warning(f"Invalid position format: '{pos_str}'. Expected 'x,y'.")
+                return
             off_x, off_y = map(int, pos_str.split(','))
-            
             final_blocks = []
             for block in translated_blocks:
-                new_bbox = []
-                for point in block['bbox']:
-                    new_bbox.append([point[0] + off_x, point[1] + off_y])
-                
-                final_blocks.append({
-                    'text': block['text'],
-                    'bbox': new_bbox
-                })
-            
+                new_bbox = [[p[0] + off_x, p[1] + off_y] for p in block['bbox']]
+                final_blocks.append({'text': block['text'], 'bbox': new_bbox})
             self.translation_complete.emit(final_blocks)
-            
-            # Performance Logging
+
             if self.config["developer"]["perf_logging"]:
                 t_end = time.time()
                 total_time = (t_end - t_start) * 1000
@@ -164,13 +134,73 @@ class TranslationWorker(QThread):
                             f"OCR: {(t_proc_start - t_ocr_start)*1000:.2f}ms | "
                             f"Process: {(t_trans_start - t_proc_start)*1000:.2f}ms | "
                             f"Translate: {(t_end - t_trans_start)*1000:.2f}ms")
-
         except Exception as e:
             logger.error(f"Error adjusting coordinates: {e}")
-    
+
     def stop(self):
-        """Stop the worker."""
         self.running = False
+
+
+# ─── UI Helper Functions ─────────────────────────────────────────────
+
+def _make_card(title=None, description=None):
+    """Create a styled card QFrame."""
+    card = QFrame()
+    card.setProperty("class", "card")
+    card_layout = QVBoxLayout(card)
+    card_layout.setContentsMargins(20, 16, 20, 16)
+    card_layout.setSpacing(12)
+
+    if title:
+        t = QLabel(title)
+        t.setProperty("class", "card-title")
+        card_layout.addWidget(t)
+    if description:
+        d = QLabel(description)
+        d.setProperty("class", "card-desc")
+        d.setWordWrap(True)
+        card_layout.addWidget(d)
+
+    shadow = QGraphicsDropShadowEffect()
+    shadow.setBlurRadius(20)
+    shadow.setOffset(0, 2)
+    shadow.setColor(QColor(0, 0, 0, 30))
+    card.setGraphicsEffect(shadow)
+    return card, card_layout
+
+
+def _make_field_label(text):
+    lbl = QLabel(text)
+    lbl.setProperty("class", "field-label")
+    return lbl
+
+
+def _make_btn(text, cls="btn-primary"):
+    btn = QPushButton(text)
+    btn.setProperty("class", cls)
+    btn.setCursor(Qt.CursorShape.PointingHandCursor)
+    return btn
+
+
+def _h_field(label_text, widget, stretch=True):
+    """Horizontal label + widget row."""
+    row = QHBoxLayout()
+    row.addWidget(_make_field_label(label_text))
+    row.addWidget(widget)
+    if stretch:
+        row.addStretch()
+    return row
+
+
+# ─── Main Window ─────────────────────────────────────────────────────
+
+NAV_ITEMS = [
+    ("⚡", "Control"),
+    ("🌐", "General"),
+    ("👁", "OCR"),
+    ("🔄", "Translation"),
+    ("🛠", "Developer"),
+]
 
 
 class SettingsWindow(QWidget):
@@ -179,265 +209,328 @@ class SettingsWindow(QWidget):
         self.config = ConfigManager.load_config()
         self.worker = None
         self.overlay = None
+        self.nav_buttons = []
+        self.current_nav = 0
         self.initUI()
-        
+
+    # ── Theme ────────────────────────────────────────────────────────
+
     def toggle_theme(self):
-        """Toggle between dark and light theme."""
-        current_theme = self.config["general"]["theme"]
-        new_theme = "light" if current_theme == "dark" else "dark"
+        current = self.config["general"]["theme"]
+        new_theme = "light" if current == "dark" else "dark"
         self.config["general"]["theme"] = new_theme
         self.auto_save()
         self.apply_theme(new_theme)
-        
+
     def apply_theme(self, theme):
-        """Apply stylesheet based on theme."""
-        if theme == "dark":
-            self.setStyleSheet("""
-                QWidget { background-color: #2b2b2b; color: #ffffff; }
-                QLineEdit, QComboBox, QSpinBox { background-color: #3b3b3b; color: #ffffff; border: 1px solid #555; }
-                QPushButton { background-color: #444; color: #fff; border: 1px solid #555; padding: 5px; }
-                QPushButton:hover { background-color: #555; }
-                QTabWidget::pane { border: 1px solid #444; }
-            """)
-        else:
-            self.setStyleSheet("")  # Reset to default (light)
-            
+        self.setStyleSheet(build_stylesheet(theme))
+        icon = "☀️" if theme == "dark" else "🌙"
+        label = "Light Mode" if theme == "dark" else "Dark Mode"
+        if hasattr(self, 'theme_btn'):
+            self.theme_btn.setText(f"{icon}  {label}")
+
+    # ── UI Init ──────────────────────────────────────────────────────
+
     def initUI(self):
-        from PyQt6.QtWidgets import QListWidget, QStackedWidget
+        self.setObjectName("CentralWidget")
         self.setWindowTitle('Screen Translator')
-        self.setGeometry(300, 300, 700, 500)
-        
-        # Apply initial theme
+        self.setMinimumSize(820, 540)
+        self.resize(820, 540)
+
+        root = QHBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # ── Sidebar ──
+        sidebar = QFrame()
+        sidebar.setObjectName("Sidebar")
+        sidebar.setFixedWidth(220)
+        sb_layout = QVBoxLayout(sidebar)
+        sb_layout.setContentsMargins(14, 20, 14, 16)
+        sb_layout.setSpacing(4)
+
+        # App branding
+        title = QLabel("Screen Translator")
+        title.setObjectName("AppTitle")
+        sb_layout.addWidget(title)
+        subtitle = QLabel("Real-time OCR & Translation")
+        subtitle.setObjectName("AppSubtitle")
+        sb_layout.addWidget(subtitle)
+        sb_layout.addSpacing(20)
+
+        # Nav items
+        for i, (icon, label) in enumerate(NAV_ITEMS):
+            btn = QPushButton(f"  {icon}   {label}")
+            btn.setProperty("class", "nav-item")
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setFixedHeight(40)
+            btn.clicked.connect(lambda checked, idx=i: self._nav_click(idx))
+            sb_layout.addWidget(btn)
+            self.nav_buttons.append(btn)
+
+        sb_layout.addStretch()
+
+        # Theme toggle at bottom
+        self.theme_btn = QPushButton()
+        self.theme_btn.setObjectName("ThemeToggle")
+        self.theme_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.theme_btn.clicked.connect(self.toggle_theme)
+        sb_layout.addWidget(self.theme_btn)
+
+        root.addWidget(sidebar)
+
+        # ── Content Area ──
+        self.stacked = QStackedWidget()
+        self.stacked.setContentsMargins(0, 0, 0, 0)
+
+        self._build_control_page()
+        self._build_general_page()
+        self._build_ocr_page()
+        self._build_trans_page()
+        self._build_dev_page()
+
+        root.addWidget(self.stacked, 1)
+
+        # Apply theme & set initial nav
         self.apply_theme(self.config["general"]["theme"])
+        self._nav_click(0)
 
-        main_layout = QHBoxLayout()
-        
-        # Left Panel (Sidebar)
-        self.left_panel = QWidget()
-        self.left_layout = QVBoxLayout()
-        self.left_layout.setContentsMargins(0, 0, 0, 0)
-        self.left_layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # Pack to top
-        
-        self.toggle_btn = QPushButton("≡")
-        self.toggle_btn.setFixedSize(30, 30)
-        self.toggle_btn.clicked.connect(self.toggle_sidebar)
-        self.left_layout.addWidget(self.toggle_btn)
-        
-        self.sidebar_list = QListWidget()
-        self.sidebar_list.addItems(["Control", "General", "OCR", "Translation", "Developer"])
-        self.sidebar_list.currentRowChanged.connect(self.change_tab)
-        # Ensure list widget expands when visible
-        self.sidebar_list.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-        self.left_layout.addWidget(self.sidebar_list)
-        
-        self.left_panel.setLayout(self.left_layout)
-        self.left_panel.setFixedWidth(150)
-        main_layout.addWidget(self.left_panel)
-        
-        # Right Panel (Stacked Widget)
-        self.stacked_widget = QStackedWidget()
-        self.tab_control = QWidget()
-        self.tab_general = QWidget()
-        self.tab_ocr = QWidget()
-        self.tab_trans = QWidget()
-        self.tab_dev = QWidget()
-        
-        self.stacked_widget.addWidget(self.tab_control)
-        self.stacked_widget.addWidget(self.tab_general)
-        self.stacked_widget.addWidget(self.tab_ocr)
-        self.stacked_widget.addWidget(self.tab_trans)
-        self.stacked_widget.addWidget(self.tab_dev)
-        
-        self.init_control_tab()
-        self.init_general_tab()
-        self.init_ocr_tab()
-        self.init_trans_tab()
-        self.init_dev_tab()
-        
-        main_layout.addWidget(self.stacked_widget)
-        self.setLayout(main_layout)
+    def _nav_click(self, idx):
+        self.current_nav = idx
+        self.stacked.setCurrentIndex(idx)
+        for i, btn in enumerate(self.nav_buttons):
+            btn.setProperty("class", "nav-active" if i == idx else "nav-item")
+            btn.style().unpolish(btn)
+            btn.style().polish(btn)
 
-    def toggle_sidebar(self):
-        if self.sidebar_list.isVisible():
-            self.sidebar_list.hide()
-            self.left_panel.setFixedWidth(30)
-        else:
-            self.sidebar_list.show()
-            self.left_panel.setFixedWidth(150)
-            
-    def change_tab(self, index):
-        self.stacked_widget.setCurrentIndex(index)
+    # ── Page Builder Helper ──────────────────────────────────────────
 
-    def init_control_tab(self):
-        layout = QVBoxLayout()
-        
-        # Region Selection
-        region_layout = QHBoxLayout()
-        region_layout.addWidget(QLabel("Selected Region:"))
-        self.region_label = QLabel(self.config["capture"]["region"] or "None")
+    def _make_page(self, title, desc):
+        """Create a scrollable page with header."""
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(32, 28, 32, 28)
+        layout.setSpacing(16)
+
+        t = QLabel(title)
+        t.setObjectName("PageTitle")
+        layout.addWidget(t)
+
+        d = QLabel(desc)
+        d.setObjectName("PageDesc")
+        d.setWordWrap(True)
+        layout.addWidget(d)
+        layout.addSpacing(4)
+
+        scroll.setWidget(container)
+        self.stacked.addWidget(scroll)
+        return layout
+
+    # ── Control Page ─────────────────────────────────────────────────
+
+    def _build_control_page(self):
+        page = self._make_page("Control Panel", "Manage translation capture and monitor status.")
+
+        # Status Card
+        card, cl = _make_card("Status")
+        self.status_dot = QLabel("●")
+        self.status_dot.setFixedWidth(20)
+        self.status_text = QLabel("Stopped")
+        self.status_text.setObjectName("StatusStopped")
+        row = QHBoxLayout()
+        row.addWidget(self.status_dot)
+        row.addWidget(self.status_text)
+        row.addStretch()
+        cl.addLayout(row)
+        page.addWidget(card)
+
+        # Region Card
+        card, cl = _make_card("Capture Region", "Select screen area to capture and translate.")
+        self.region_label = QLabel(self.config["capture"]["region"] or "No region selected")
+        self.region_label.setObjectName("RegionValue")
         self.region_label.setWordWrap(True)
-        region_layout.addWidget(self.region_label)
-        region_layout.addStretch()
-        
-        select_region_btn = QPushButton("Select Region")
-        select_region_btn.clicked.connect(self.select_region)
-        region_layout.addWidget(select_region_btn)
-        
-        layout.addLayout(region_layout)
-        
-        # Interval
-        interval_layout = QHBoxLayout()
-        interval_layout.addWidget(QLabel("Check Interval (seconds):"))
+        cl.addWidget(self.region_label)
+        select_btn = _make_btn("📐  Select Region", "btn-secondary")
+        select_btn.clicked.connect(self.select_region)
+        cl.addWidget(select_btn)
+        page.addWidget(card)
+
+        # Interval Card
+        card, cl = _make_card("Capture Interval")
         self.interval_spin = QSpinBox()
         self.interval_spin.setMinimum(1)
         self.interval_spin.setMaximum(60)
         self.interval_spin.setValue(self.config["capture"]["interval"])
+        self.interval_spin.setSuffix("  seconds")
+        self.interval_spin.setFixedWidth(160)
         self.interval_spin.valueChanged.connect(self.auto_save)
-        interval_layout.addWidget(self.interval_spin)
-        interval_layout.addStretch()
-        
-        layout.addLayout(interval_layout)
-        
-        # Start/Stop
-        control_layout = QHBoxLayout()
-        self.start_btn = QPushButton("Start Translation")
+        cl.addLayout(_h_field("Interval", self.interval_spin))
+        page.addWidget(card)
+
+        # Action Buttons
+        card, cl = _make_card()
+        btn_row = QHBoxLayout()
+        self.start_btn = _make_btn("▶  Start Translation", "btn-primary")
         self.start_btn.clicked.connect(self.start_translation)
-        control_layout.addWidget(self.start_btn)
-        
-        self.stop_btn = QPushButton("Stop Translation")
+        btn_row.addWidget(self.start_btn)
+        self.stop_btn = _make_btn("■  Stop", "btn-danger")
         self.stop_btn.clicked.connect(self.stop_translation)
         self.stop_btn.setEnabled(False)
-        control_layout.addWidget(self.stop_btn)
-        
-        layout.addLayout(control_layout)
-        
-        # Status
-        self.status_label = QLabel("Status: Stopped")
-        self.status_label.setStyleSheet("font-weight: bold; color: red;")
-        layout.addWidget(self.status_label)
-        
-        # Theme Toggle (Bottom Right)
-        theme_layout = QHBoxLayout()
-        theme_layout.addStretch()
-        self.theme_btn = QPushButton("Toggle Theme (Dark/Light)")
-        self.theme_btn.clicked.connect(self.toggle_theme)
-        theme_layout.addWidget(self.theme_btn)
-        layout.addLayout(theme_layout)
-        
-        layout.addStretch()
-        self.tab_control.setLayout(layout)
+        btn_row.addWidget(self.stop_btn)
+        btn_row.addStretch()
+        cl.addLayout(btn_row)
+        page.addWidget(card)
 
-    def init_general_tab(self):
-        layout = QVBoxLayout()
-        
-        # Source Lang
-        layout.addWidget(QLabel("Source Language:"))
+        page.addStretch()
+        self._update_status_display(False)
+
+    # ── General Page ─────────────────────────────────────────────────
+
+    def _build_general_page(self):
+        page = self._make_page("General", "Language and basic preferences.")
+
+        card, cl = _make_card("Languages", "Configure source and target languages for translation.")
+        cl.addWidget(_make_field_label("Source Language"))
         self.source_lang_input = QLineEdit(self.config["general"]["source_lang"])
+        self.source_lang_input.setPlaceholderText("auto")
         self.source_lang_input.textChanged.connect(self.auto_save)
-        layout.addWidget(self.source_lang_input)
-        
-        # Target Lang
-        layout.addWidget(QLabel("Target Language:"))
-        self.target_lang_input = QLineEdit(self.config["general"]["target_lang"])
-        self.target_lang_input.textChanged.connect(self.auto_save)
-        layout.addWidget(self.target_lang_input)
-        
-        layout.addStretch()
-        self.tab_general.setLayout(layout)
+        cl.addWidget(self.source_lang_input)
 
-    def init_ocr_tab(self):
-        layout = QVBoxLayout()
-        
-        # Backend
-        layout.addWidget(QLabel("OCR Backend:"))
+        cl.addSpacing(4)
+        cl.addWidget(_make_field_label("Target Language"))
+        self.target_lang_input = QLineEdit(self.config["general"]["target_lang"])
+        self.target_lang_input.setPlaceholderText("tr")
+        self.target_lang_input.textChanged.connect(self.auto_save)
+        cl.addWidget(self.target_lang_input)
+        page.addWidget(card)
+
+        page.addStretch()
+
+    # ── OCR Page ─────────────────────────────────────────────────────
+
+    def _build_ocr_page(self):
+        page = self._make_page("OCR Settings", "Optical character recognition engine configuration.")
+
+        card, cl = _make_card("Engine")
+        cl.addWidget(_make_field_label("OCR Backend"))
         self.ocr_backend_combo = QComboBox()
         self.ocr_backend_combo.addItems(["EasyOCR", "PaddleOCR"])
         self.ocr_backend_combo.setCurrentText(self.config["ocr"]["backend"])
         self.ocr_backend_combo.currentTextChanged.connect(self.auto_save)
-        layout.addWidget(self.ocr_backend_combo)
-        
-        # GPU
-        self.gpu_check = QCheckBox("Use GPU (Requires CUDA)")
+        cl.addWidget(self.ocr_backend_combo)
+
+        cl.addSpacing(8)
+        self.gpu_check = QCheckBox("Use GPU acceleration (CUDA)")
         self.gpu_check.setChecked(self.config["ocr"]["use_gpu"])
         self.gpu_check.toggled.connect(self.auto_save)
-        layout.addWidget(self.gpu_check)
-        
-        # Correction
-        self.correction_check = QCheckBox("Enable Text Correction")
+        cl.addWidget(self.gpu_check)
+        page.addWidget(card)
+
+        card, cl = _make_card("Processing")
+        self.correction_check = QCheckBox("Enable text correction")
         self.correction_check.setChecked(self.config["ocr"]["correction_enabled"])
         self.correction_check.toggled.connect(self.auto_save)
-        layout.addWidget(self.correction_check)
+        cl.addWidget(self.correction_check)
 
-        # Merge Distance
-        merge_layout = QHBoxLayout()
-        merge_layout.addWidget(QLabel("Text Merge Distance (px):"))
+        cl.addSpacing(4)
         self.merge_spin = QSpinBox()
         self.merge_spin.setMinimum(0)
         self.merge_spin.setMaximum(200)
         self.merge_spin.setValue(self.config["ocr"]["merge_distance"])
+        self.merge_spin.setSuffix("  px")
+        self.merge_spin.setFixedWidth(140)
         self.merge_spin.valueChanged.connect(self.auto_save)
-        merge_layout.addWidget(self.merge_spin)
-        merge_layout.addStretch()
-        layout.addLayout(merge_layout)
-        
-        layout.addStretch()
-        self.tab_ocr.setLayout(layout)
+        cl.addLayout(_h_field("Text merge distance", self.merge_spin))
+        page.addWidget(card)
 
-    def init_trans_tab(self):
-        layout = QVBoxLayout()
-        
-        # Backend
-        layout.addWidget(QLabel("Translation Backend:"))
+        page.addStretch()
+
+    # ── Translation Page ─────────────────────────────────────────────
+
+    def _build_trans_page(self):
+        page = self._make_page("Translation", "Choose translation engine and configure API keys.")
+
+        card, cl = _make_card("Engine")
+        cl.addWidget(_make_field_label("Translation Backend"))
         self.trans_backend_combo = QComboBox()
         self.trans_backend_combo.addItems(["Argos Translate", "OpenAI Compatible LLM", "Google", "DeepL"])
         self.trans_backend_combo.setCurrentText(self.config["translation"]["backend"])
         self.trans_backend_combo.currentTextChanged.connect(self.auto_save)
         self.trans_backend_combo.currentTextChanged.connect(self.update_trans_ui_state)
-        layout.addWidget(self.trans_backend_combo)
-        
-        # DeepL Key
-        self.deepl_label = QLabel("DeepL API Key:")
-        layout.addWidget(self.deepl_label)
+        cl.addWidget(self.trans_backend_combo)
+        page.addWidget(card)
+
+        # DeepL card
+        self.deepl_card, cl = _make_card("DeepL Configuration")
+        cl.addWidget(_make_field_label("API Key"))
         self.deepl_key_input = QLineEdit(self.config["translation"]["deepl_api_key"])
         self.deepl_key_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.deepl_key_input.setPlaceholderText("Enter your DeepL API key")
         self.deepl_key_input.textChanged.connect(self.auto_save)
-        layout.addWidget(self.deepl_key_input)
+        cl.addWidget(self.deepl_key_input)
+        page.addWidget(self.deepl_card)
 
-        # OpenAI Compatible LLM URL
-        self.llm_url_label = QLabel("API URL (e.g. http://127.0.0.1:5000/v1):")
-        layout.addWidget(self.llm_url_label)
+        # LLM card
+        self.llm_card, cl = _make_card("LLM Configuration")
+        cl.addWidget(_make_field_label("API URL"))
         self.llm_url_input = QLineEdit(self.config["translation"]["llm_api_base"])
+        self.llm_url_input.setPlaceholderText("http://127.0.0.1:5000/v1")
         self.llm_url_input.textChanged.connect(self.auto_save)
-        layout.addWidget(self.llm_url_input)
-        
-        # Initial UI State Update
-        self.update_trans_ui_state(self.trans_backend_combo.currentText())
-        
-        layout.addStretch()
-        self.tab_trans.setLayout(layout)
+        cl.addWidget(self.llm_url_input)
+        page.addWidget(self.llm_card)
 
-    def init_dev_tab(self):
-        layout = QVBoxLayout()
-        
-        # Performance Logging
-        self.perf_log_check = QCheckBox("Enable Performance Logging (Console)")
+        self.update_trans_ui_state(self.trans_backend_combo.currentText())
+        page.addStretch()
+
+    # ── Developer Page ───────────────────────────────────────────────
+
+    def _build_dev_page(self):
+        page = self._make_page("Developer", "Debugging and performance tools.")
+
+        card, cl = _make_card("Debug Tools")
+        self.perf_log_check = QCheckBox("Enable performance logging (console)")
         self.perf_log_check.setChecked(self.config["developer"]["perf_logging"])
         self.perf_log_check.toggled.connect(self.auto_save)
-        layout.addWidget(self.perf_log_check)
-        
-        # Region Checker (OCR Debug)
-        self.region_check_box = QCheckBox("Enable Region Checker (Show OCR Text Only)")
+        cl.addWidget(self.perf_log_check)
+
+        cl.addSpacing(4)
+        self.region_check_box = QCheckBox("Region checker (show raw OCR output)")
         self.region_check_box.setChecked(self.config["developer"]["region_check"])
         self.region_check_box.toggled.connect(self.auto_save)
-        layout.addWidget(self.region_check_box)
-        
-        layout.addWidget(QLabel("Logs will appear in the terminal where you launched the app."))
-        
-        layout.addStretch()
-        self.tab_dev.setLayout(layout)
+        cl.addWidget(self.region_check_box)
+
+        cl.addSpacing(8)
+        hint = QLabel("Logs appear in the terminal where the app was launched.")
+        hint.setProperty("class", "card-desc")
+        hint.setWordWrap(True)
+        cl.addWidget(hint)
+        page.addWidget(card)
+
+        page.addStretch()
+
+    # ── Status helpers ───────────────────────────────────────────────
+
+    def _update_status_display(self, running: bool):
+        if running:
+            self.status_dot.setText("●")
+            self.status_dot.setStyleSheet("color: #00b894; font-size: 18px;")
+            self.status_text.setText("Running")
+            self.status_text.setObjectName("StatusRunning")
+        else:
+            self.status_dot.setText("●")
+            self.status_dot.setStyleSheet("color: #ff6b6b; font-size: 18px;")
+            self.status_text.setText("Stopped")
+            self.status_text.setObjectName("StatusStopped")
+        self.status_text.style().unpolish(self.status_text)
+        self.status_text.style().polish(self.status_text)
+
+    # ── Actions ──────────────────────────────────────────────────────
 
     def select_region(self):
-        """Select screen region using slurp."""
         region = ScreenCapture.select_region()
         if region:
             self.config["capture"]["region"] = region
@@ -446,23 +539,10 @@ class SettingsWindow(QWidget):
             logger.info(f"Region selected: {region}")
 
     def update_trans_ui_state(self, backend):
-        """Update visibility of translation settings based on backend."""
-        # Hide all first
-        self.deepl_label.hide()
-        self.deepl_key_input.hide()
-        self.llm_url_label.hide()
-        self.llm_url_input.hide()
-        
-        # Show relevant
-        if backend == "DeepL":
-            self.deepl_label.show()
-            self.deepl_key_input.show()
-        elif backend == "OpenAI Compatible LLM":
-            self.llm_url_label.show()
-            self.llm_url_input.show()
+        self.deepl_card.setVisible(backend == "DeepL")
+        self.llm_card.setVisible(backend == "OpenAI Compatible LLM")
 
     def auto_save(self):
-        """Auto-save settings whenever changed."""
         self.config["general"]["source_lang"] = self.source_lang_input.text()
         self.config["general"]["target_lang"] = self.target_lang_input.text()
         self.config["ocr"]["use_gpu"] = self.gpu_check.isChecked()
@@ -475,65 +555,49 @@ class SettingsWindow(QWidget):
         self.config["capture"]["interval"] = self.interval_spin.value()
         self.config["developer"]["perf_logging"] = self.perf_log_check.isChecked()
         self.config["developer"]["region_check"] = self.region_check_box.isChecked()
-        
         ConfigManager.save_config(self.config)
         logger.info("Settings auto-saved")
 
     def start_translation(self):
-        """Start the translation worker."""
         if not self.config["capture"]["region"]:
             logger.warning("Please select a region first")
             return
-        
-        # Create overlay
         if not self.overlay:
             self.overlay = OverlayWindow()
-        
-        # Create and start worker
         self.worker = TranslationWorker(self.config)
         self.worker.translation_complete.connect(self.update_overlay)
         self.worker.error_occurred.connect(self.show_error_message)
         self.worker.start()
-        
         self.start_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
-        self.status_label.setText("Status: Running")
-        self.status_label.setStyleSheet("font-weight: bold; color: green;")
+        self._update_status_display(True)
         logger.info("Translation started")
 
     def stop_translation(self):
-        """Stop the translation worker."""
         if self.worker:
             self.worker.stop()
             self.worker.wait()
             self.worker = None
-        
         if self.overlay:
             self.overlay.close()
             self.overlay = None
-        
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
-        self.status_label.setText("Status: Stopped")
-        self.status_label.setStyleSheet("font-weight: bold; color: red;")
+        self._update_status_display(False)
         logger.info("Translation stopped")
 
     def update_overlay(self, blocks):
-        """Update overlay with new translated blocks."""
         if self.overlay:
             self.overlay.set_text_blocks(blocks)
 
     def keyPressEvent(self, event):
-        """Handle keyboard shortcuts. ESC to close overlay."""
-        from PyQt6.QtCore import Qt
         if event.key() == Qt.Key.Key_Escape:
             if self.overlay:
                 self.overlay.close()
                 self.overlay = None
                 logger.info("Overlay closed via ESC key")
-    
+
     def closeEvent(self, event):
-        """Handle window close event."""
         self.stop_translation()
         event.accept()
 

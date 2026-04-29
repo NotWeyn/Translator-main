@@ -16,6 +16,7 @@
 - [x] **Hyprland Mode Removal**: Streamlined the application by removing experimental Wayland-specific features.
 - [x] **Config Migration**: Replaced JSON config with TOML-based `config.toml` in project root.
 - [x] **Overlay Mode**: Added `--overlay` CLI flag for headless fullscreen overlay.
+- [x] **Modern UI Redesign v2**: Complete premium redesign — sidebar with icons, card layout, theme module, polished dark/light modes.
 
 ## What Works
 ### Core Functionality
@@ -39,9 +40,11 @@
 - **Target region** override for overlay-specific capture area.
 
 ### UI Features
-- **Settings GUI**: Collapsible left sidebar for configuration options.
+- **Modern Settings GUI**: Premium sidebar with icons, card-based content layout.
+- **Theme System**: `src/ui/theme.py` — centralized dark/light with purple accent (#6c5ce7).
 - **Auto-save**: Settings persist to `config.toml` automatically.
-- **Theme Toggle**: Dark/Light mode switching.
+- **Theme Toggle**: Dark/Light mode switching with polished themes.
+- **Status Indicator**: Colored dot (green/red) for translation state.
 
 ## Known Issues & Limitations
 - **Hotkeys**: `[hotkeys]` section is defined in config but not yet implemented (future work).
