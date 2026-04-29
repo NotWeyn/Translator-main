@@ -48,13 +48,18 @@ class OverlayWindow(QWidget):
         flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
         if self.always_on_top:
             flags |= Qt.WindowType.WindowStaysOnTopHint
+        if self.overlay_mode:
+            flags |= Qt.WindowType.X11BypassWindowManagerHint
         self.setWindowFlags(flags)
-        
+
         # Click-through
         if self.click_through:
             self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+
+        # Transparency — all three are needed for true see-through on Wayland
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        self.setAutoFillBackground(False)
 
         # Full screen geometry
         screen = QApplication.primaryScreen()
@@ -83,6 +88,10 @@ class OverlayWindow(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         if self.overlay_mode:
+            # Explicitly clear entire surface to fully transparent
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+            painter.fillRect(self.rect(), Qt.GlobalColor.transparent)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
             self._paint_overlay_mode(painter)
         else:
             self._paint_windowed_mode(painter)
