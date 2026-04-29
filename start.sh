@@ -9,13 +9,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # ── Terminalden çalıştırıldıysa, arka plana at ve terminali kapat ──
-if [ -t 0 ] && [ -z "$_TRANSLATOR_LAUNCHED" ]; then
-    export _TRANSLATOR_LAUNCHED=1
-    setsid "$0" "$@" </dev/null &>/dev/null &
-    # Üst shell sürecini kapat → terminal penceresi de kapanır
-    kill $PPID 2>/dev/null
-    exit 0
-fi
 
 # ── Hata mesajı gösterme (GUI dialog) ──
 show_error() {

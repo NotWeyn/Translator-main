@@ -1,0 +1,86 @@
+# Python
+__pycache__/
+**/__pycache__/*
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+/__pycache__
+
+
+
+
+# Virtual Environment
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment variables / Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# OS specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Project specific
+.deps_hash
+*.log
+screenshots/
+temp/
+tmp/
+
+# OCR / Machine Learning Caches
+.paddleocr/
+.easyocr/
+hubconf.py
+# If models are downloaded locally
+models/
+checkpoint/
+
+# Tests
+.pytest_cache/
+.tox/
+.nox/
+.coverage
+.cache
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/

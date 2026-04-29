@@ -2,7 +2,7 @@
 
 ## Current Focus
 - **Project Status**: Production-ready with recent bug fixes.
-- **Latest Work**: Fixed PaddleOCR compatibility and improved Windowed Mode visual separation.
+- **Latest Work**: Created a comprehensive `.gitignore` file and untracked existing `__pycache__` files.
 - **Active Issues**: Ensuring text blocks are visually distinct in Windowed Mode.
 
 ## Recent Decisions & Changes (Latest Session)

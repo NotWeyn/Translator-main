@@ -10,6 +10,7 @@
 - [x] Bug Fixes & Polish
 - [x] Documentation
 - [x] Final Bug Fixes (PaddleOCR, Windowed Mode)
+- [x] Created .gitignore
 
 ## What Works
 ### Core Functionality
