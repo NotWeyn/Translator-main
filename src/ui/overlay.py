@@ -124,7 +124,7 @@ class OverlayWindow(QWidget):
         self.initUI()
 
     def initUI(self):
-        flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
+        flags = Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool | Qt.WindowType.WindowTransparentForInput
         if self.always_on_top:
             flags |= Qt.WindowType.WindowStaysOnTopHint
         self.setWindowFlags(flags)
@@ -136,8 +136,7 @@ class OverlayWindow(QWidget):
             self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
-        self.setAutoFillBackground(False)
+        self.setStyleSheet("background-color: transparent;")
 
         screen = QApplication.primaryScreen()
         rect = screen.geometry()
@@ -176,10 +175,8 @@ class OverlayWindow(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         if self.overlay_mode:
-            # Clear background to transparent (works on both xcb and wayland)
-            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
-            painter.fillRect(self.rect(), QColor(0, 0, 0, 0))
-            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+            # Let Qt handle the transparent background clearing automatically.
+            # Manual composition clear causes black screen on Wayland/Hyprland.
             self._paint_overlay_mode(painter)
         else:
             self._paint_windowed_mode(painter)

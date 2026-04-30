@@ -14,6 +14,7 @@ import time
 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QTimer, QThread, pyqtSignal
+from PyQt6.QtGui import QSurfaceFormat
 
 from src.utils.config import ConfigManager
 from src.utils.capture import ScreenCapture
@@ -172,13 +173,18 @@ def run_overlay():
     logging.basicConfig(level=getattr(logging, log_level, logging.INFO),
                         format="%(levelname)s:%(name)s:%(message)s")
 
-    # Try XWayland (xcb) first for X11 click-through support.
-    # If DISPLAY is set, XWayland is likely available.
-    if os.environ.get("DISPLAY"):
-        os.environ.setdefault("QT_QPA_PLATFORM", "xcb")
-        logger.info("Using xcb (XWayland) platform for click-through support")
-    else:
-        logger.info("No DISPLAY set — using native Wayland (click-through via hyprctl)")
+    # ── Force XCB (XWayland) for transparent overlay ──
+    # WA_TranslucentBackground does NOT work on native Wayland — compositors
+    # render the surface as opaque black.  Running under XWayland (xcb) is the
+    # standard workaround used by overlay-type apps on Linux.  This works on
+    # KDE Plasma, Gamescope, Hyprland, and any compositor with XWayland.
+    os.environ["QT_QPA_PLATFORM"] = "xcb"
+    logger.info("Overlay mode: forcing xcb (XWayland) for transparency support")
+
+    # Ensure the surface format has an alpha channel
+    fmt = QSurfaceFormat()
+    fmt.setAlphaBufferSize(8)
+    QSurfaceFormat.setDefaultFormat(fmt)
 
     app = QApplication(sys.argv)
 

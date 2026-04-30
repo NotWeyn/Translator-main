@@ -17,6 +17,7 @@
 - [x] **Config Migration**: Replaced JSON config with TOML-based `config.toml` in project root.
 - [x] **Overlay Mode**: Added `--overlay` CLI flag for headless fullscreen overlay.
 - [x] **Modern UI Redesign v2**: Complete premium redesign — sidebar with icons, card layout, theme module, polished dark/light modes.
+- [x] **Launcher Enhancements**: Added GUI progress dialog (zenity/kdialog) to `start.sh` and integrated `uv` for fast initial setup.
 
 ## What Works
 ### Core Functionality
@@ -33,7 +34,7 @@
 - **Deep merge**: Missing keys auto-filled from defaults.
 
 ### Overlay Mode (`--overlay`)
-- **Fullscreen, click-through** transparent window.
+- **Fullscreen, click-through** transparent window (Natively supported on Hyprland, KDE Plasma, Gamescope).
 - **Configurable**: background opacity/color/padding, font family/size/color/bold.
 - **Show original text** option alongside translation.
 - **Separate refresh interval** from capture interval.

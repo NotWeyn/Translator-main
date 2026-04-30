@@ -44,14 +44,66 @@ fi
 
 # ── Venv yoksa oluştur ve bağımlılıkları kur ──
 if [ ! -d "venv" ]; then
-    python3 -m venv venv --system-site-packages
-    ./venv/bin/pip install --upgrade pip -q 2>/dev/null
-    ./venv/bin/pip install -r requirements.txt -q 2>/dev/null
-
-    if [ $? -ne 0 ]; then
-        show_error "Python bağımlılıkları yüklenirken hata oluştu."
-        rm -rf venv
-        exit 1
+    if command -v zenity &>/dev/null; then
+        (
+        echo "10"; echo "# Sanal ortam (venv) oluşturuluyor..."
+        python3 -m venv venv --system-site-packages || exit 1
+        echo "30"; echo "# Hızlı kurulum için 'uv' paket yöneticisi indiriliyor..."
+        ./venv/bin/pip install uv -q || exit 1
+        echo "60"; echo "# Gerekli kütüphaneler indiriliyor (Bu işlem internet hızınıza göre sürebilir)..."
+        VIRTUAL_ENV="$PWD/venv" ./venv/bin/uv pip install -r requirements.txt -q || exit 1
+        echo "100"; echo "# Kurulum tamamlandı!"
+        ) | zenity --progress --title="Screen Translator - İlk Kurulum" --text="Hazırlanıyor..." --percentage=0 --auto-close --auto-kill --width=400
+        
+        if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            show_error "Bağımlılıklar yüklenirken veya iptal edildiği için hata oluştu."
+            rm -rf venv
+            exit 1
+        fi
+    elif command -v kdialog &>/dev/null; then
+        dbusRef=$(kdialog --progressbar "Screen Translator İlk Kurulum\nSanal ortam (venv) oluşturuluyor..." 100 --title "İlk Kurulum")
+        qdbus $dbusRef Set "" value 10 2>/dev/null
+        python3 -m venv venv --system-site-packages
+        if [ $? -eq 0 ]; then
+            qdbus $dbusRef setLabelText "Hızlı kurulum için 'uv' indiriliyor..." 2>/dev/null
+            qdbus $dbusRef Set "" value 30 2>/dev/null
+            ./venv/bin/pip install uv -q
+            if [ $? -eq 0 ]; then
+                qdbus $dbusRef setLabelText "Gerekli kütüphaneler indiriliyor (Bu işlem sürebilir)..." 2>/dev/null
+                qdbus $dbusRef Set "" value 60 2>/dev/null
+                VIRTUAL_ENV="$PWD/venv" ./venv/bin/uv pip install -r requirements.txt -q
+                if [ $? -eq 0 ]; then
+                    qdbus $dbusRef Set "" value 100 2>/dev/null
+                    sleep 1
+                else
+                    show_error "Kütüphaneler yüklenirken hata oluştu."
+                    rm -rf venv
+                    exit 1
+                fi
+            else
+                show_error "uv yüklenirken hata oluştu."
+                rm -rf venv
+                exit 1
+            fi
+        else
+            show_error "Venv oluşturulurken hata oluştu."
+            rm -rf venv
+            exit 1
+        fi
+        qdbus $dbusRef close 2>/dev/null
+    else
+        # Fallback if no GUI dialog
+        command -v notify-send &>/dev/null && notify-send "Screen Translator" "İlk kurulum yapılıyor, sanal ortam ve bağımlılıklar indiriliyor..."
+        python3 -m venv venv --system-site-packages
+        ./venv/bin/pip install uv -q
+        VIRTUAL_ENV="$PWD/venv" ./venv/bin/uv pip install -r requirements.txt -q
+        
+        if [ $? -ne 0 ]; then
+            show_error "Bağımlılıklar yüklenirken hata oluştu."
+            rm -rf venv
+            exit 1
+        fi
+        command -v notify-send &>/dev/null && notify-send "Screen Translator" "İlk kurulum tamamlandı."
     fi
 fi
 
@@ -61,7 +113,22 @@ STORED_HASH=""
 [ -f ".deps_hash" ] && STORED_HASH=$(cat .deps_hash)
 
 if [ "$CURRENT_HASH" != "$STORED_HASH" ]; then
-    ./venv/bin/pip install -r requirements.txt -q 2>/dev/null
+    if command -v zenity &>/dev/null; then
+        (
+        echo "50"; echo "# Yeni bağımlılıklar uv ile güncelleniyor..."
+        VIRTUAL_ENV="$PWD/venv" ./venv/bin/uv pip install -r requirements.txt -q || exit 1
+        echo "100"; echo "# Güncelleme tamamlandı!"
+        ) | zenity --progress --title="Screen Translator - Güncelleme" --text="Bağımlılıklar güncelleniyor..." --percentage=0 --auto-close --auto-kill --width=400
+    elif command -v kdialog &>/dev/null; then
+        dbusRef=$(kdialog --progressbar "Screen Translator Güncelleme\nYeni bağımlılıklar uv ile güncelleniyor..." 100)
+        qdbus $dbusRef Set "" value 50 2>/dev/null
+        VIRTUAL_ENV="$PWD/venv" ./venv/bin/uv pip install -r requirements.txt -q
+        qdbus $dbusRef Set "" value 100 2>/dev/null
+        sleep 1
+        qdbus $dbusRef close 2>/dev/null
+    else
+        VIRTUAL_ENV="$PWD/venv" ./venv/bin/uv pip install -r requirements.txt -q 2>/dev/null || ./venv/bin/pip install -r requirements.txt -q 2>/dev/null
+    fi
     echo "$CURRENT_HASH" > .deps_hash
 fi
 

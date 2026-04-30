@@ -1,7 +1,7 @@
 # Product Context
 
 ## Problem Statement
-Linux users, particularly gamers on Arch/Hyprland, lack a robust, integrated screen translation tool that handles context awareness well. Existing solutions often fail to group related text (breaking sentences) or lack advanced correction capabilities for stylized game fonts.
+Linux users, particularly gamers on Arch/Hyprland/KdePlasma, lack a robust, integrated screen translation tool that handles context awareness well. Existing solutions often fail to group related text (breaking sentences) or lack advanced correction capabilities for stylized game fonts.
 
 ## Solution
 A Python-based desktop application that leverages modern OCR and AI technologies to provide real-time or on-demand screen translation. It distinguishes itself with:

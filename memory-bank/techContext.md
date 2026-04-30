@@ -16,6 +16,7 @@
 - `grim`: Screenshot utility for Wayland.
 - `slurp`: Region selection utility for Wayland.
 - `wl-clipboard`: Clipboard interaction (optional but useful).
+- `uv`: Extremely fast Python package installer and resolver used in `start.sh`.
 
 ## Constraints
 - **Wayland Security**: Cannot arbitrarily spy on other windows. Must use portal or specific tools like `grim`.

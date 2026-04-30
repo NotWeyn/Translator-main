@@ -1,7 +1,7 @@
 # Project Brief: Arch Linux Screen Translator
 
 ## Core Requirements
-- **OS**: Arch Linux (specifically Hyprland/Wayland environment).
+- **OS**: Arch Linux (specifically Hyprland/Wayland/KdePlasma(etc.) environment).
 - **Functionality**:
   - Screen text detection (OCR).
   - Context integrity check (clustering nearby text).

@@ -3,7 +3,7 @@
 ## Current Focus
 - **Project Status**: Production-ready with modern UI redesign completed.
 - **Latest Work**: Complete UI redesign of `settings.py` — replaced basic 2008-era look with modern, premium interface. Created `theme.py` module for centralized theme management.
-- **Active Issues**: None currently.
+- **Active Issues**: Fixed Wayland black screen in overlay mode by forcing XCB (XWayland) platform.
 
 ## Recent Decisions & Changes (Latest Session)
 - **UI Redesign**: Completely rewrote `SettingsWindow` in `settings.py` with modern design:
@@ -20,7 +20,7 @@
 
 ## Operating Mode
 - **GUI Mode** (default): `./start.sh` → Modern SettingsWindow with sidebar navigation
-- **Overlay Mode**: `./start.sh --overlay` → Headless fullscreen overlay, click-through, bbox-based text rendering
+- **Overlay Mode**: `./start.sh --overlay` → Headless fullscreen overlay, click-through, bbox-based text rendering. Natively supports Wayland compositors (Hyprland, KDE Plasma, Gamescope) without relying solely on X11 or compositor-specific rules.
 
 ## Implementation Patterns
 - **Theme Module**: `src/ui/theme.py` — `build_stylesheet(theme)` generates complete QSS
