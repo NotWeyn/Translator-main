@@ -174,14 +174,15 @@ def run_overlay():
                         format="%(levelname)s:%(name)s:%(message)s")
 
     # ── Force XCB (XWayland) for transparent overlay ──
-    # WA_TranslucentBackground does NOT work on native Wayland — compositors
-    # render the surface as opaque black.  Running under XWayland (xcb) is the
-    # standard workaround used by overlay-type apps on Linux.  This works on
-    # KDE Plasma, Gamescope, Hyprland, and any compositor with XWayland.
+    # WA_TranslucentBackground + BypassWindowManagerHint + CompositionMode_Clear
+    # only works reliably under X11/XCB.  On native Wayland the compositor
+    # renders the surface as opaque black.
+    # NOTE: Do NOT override DISPLAY — Gamescope uses :2, Hyprland uses :1, etc.
     os.environ["QT_QPA_PLATFORM"] = "xcb"
-    logger.info("Overlay mode: forcing xcb (XWayland) for transparency support")
+    os.environ["GDK_BACKEND"] = "x11"
+    logger.info(f"Overlay: forcing xcb | DISPLAY={os.environ.get('DISPLAY', '?')}")
 
-    # Ensure the surface format has an alpha channel
+    # Alpha surface format — must be set BEFORE QApplication
     fmt = QSurfaceFormat()
     fmt.setAlphaBufferSize(8)
     QSurfaceFormat.setDefaultFormat(fmt)
