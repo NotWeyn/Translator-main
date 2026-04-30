@@ -176,9 +176,9 @@ class OverlayWindow(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         if self.overlay_mode:
-            # Clear to fully transparent first
-            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
-            painter.fillRect(self.rect(), Qt.GlobalColor.transparent)
+            # Clear background to transparent (works on both xcb and wayland)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+            painter.fillRect(self.rect(), QColor(0, 0, 0, 0))
             painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
             self._paint_overlay_mode(painter)
         else:
